@@ -184,6 +184,10 @@ describe("buildOpenAIProvider", () => {
       } as never),
     ).toEqual({
       sanitizeMode: "images-only",
+      applyAssistantFirstOrderingFix: false,
+      sanitizeToolCallIds: false,
+      validateGeminiTurns: false,
+      validateAnthropicTurns: false,
     });
 
     expect(
@@ -194,8 +198,11 @@ describe("buildOpenAIProvider", () => {
       } as never),
     ).toEqual({
       sanitizeMode: "images-only",
+      applyAssistantFirstOrderingFix: false,
       sanitizeToolCallIds: true,
       toolCallIdMode: "strict",
+      validateGeminiTurns: false,
+      validateAnthropicTurns: false,
     });
 
     expect(
@@ -206,6 +213,10 @@ describe("buildOpenAIProvider", () => {
       } as never),
     ).toEqual({
       sanitizeMode: "images-only",
+      applyAssistantFirstOrderingFix: false,
+      sanitizeToolCallIds: false,
+      validateGeminiTurns: false,
+      validateAnthropicTurns: false,
     });
   });
 
