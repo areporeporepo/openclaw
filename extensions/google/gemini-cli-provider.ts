@@ -10,6 +10,7 @@ import {
   buildGoogleReplayPolicy,
   normalizeGoogleGeminiCliToolSchemas,
   resolveGoogleReasoningOutputMode,
+  sanitizeGoogleReplayHistory,
 } from "./replay-policy.js";
 
 const PROVIDER_ID = "google-gemini-cli";
@@ -129,6 +130,7 @@ export function registerGoogleGeminiCliProvider(api: OpenClawPluginApi) {
     resolveDynamicModel: (ctx) =>
       resolveGoogle31ForwardCompatModel({ providerId: PROVIDER_ID, ctx }),
     buildReplayPolicy: () => buildGoogleReplayPolicy(),
+    sanitizeReplayHistory: (ctx) => sanitizeGoogleReplayHistory(ctx),
     normalizeToolSchemas: (ctx) => normalizeGoogleGeminiCliToolSchemas(ctx),
     resolveReasoningOutputMode: () => resolveGoogleReasoningOutputMode(),
     isModernModelRef: ({ modelId }) => isModernGoogleModel(modelId),
