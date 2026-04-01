@@ -50,6 +50,7 @@ let resolveProviderCapabilitiesWithPlugin: typeof import("./provider-runtime.js"
 let resolveProviderUsageAuthWithPlugin: typeof import("./provider-runtime.js").resolveProviderUsageAuthWithPlugin;
 let resolveProviderXHighThinking: typeof import("./provider-runtime.js").resolveProviderXHighThinking;
 let normalizeProviderToolSchemasWithPlugin: typeof import("./provider-runtime.js").normalizeProviderToolSchemasWithPlugin;
+let inspectProviderToolSchemasWithPlugin: typeof import("./provider-runtime.js").inspectProviderToolSchemasWithPlugin;
 let normalizeProviderResolvedModelWithPlugin: typeof import("./provider-runtime.js").normalizeProviderResolvedModelWithPlugin;
 let prepareProviderDynamicModel: typeof import("./provider-runtime.js").prepareProviderDynamicModel;
 let prepareProviderRuntimeAuth: typeof import("./provider-runtime.js").prepareProviderRuntimeAuth;
@@ -242,6 +243,7 @@ describe("provider-runtime", () => {
       resolveProviderUsageAuthWithPlugin,
       resolveProviderXHighThinking,
       normalizeProviderToolSchemasWithPlugin,
+      inspectProviderToolSchemasWithPlugin,
       normalizeProviderResolvedModelWithPlugin,
       prepareProviderDynamicModel,
       prepareProviderRuntimeAuth,
@@ -449,6 +451,7 @@ describe("provider-runtime", () => {
     ]);
     const validateReplayTurns = vi.fn(async ({ messages }: { messages: unknown[] }) => messages);
     const normalizeToolSchemas = vi.fn(({ tools }: { tools: unknown[] }) => tools);
+    const inspectToolSchemas = vi.fn(() => [] as { toolName: string; violations: string[] }[]);
     const resolveReasoningOutputMode = vi.fn(() => "tagged" as const);
     const resolveSyntheticAuth = vi.fn(() => ({
       apiKey: "demo-local",
@@ -504,6 +507,7 @@ describe("provider-runtime", () => {
           sanitizeReplayHistory,
           validateReplayTurns,
           normalizeToolSchemas,
+          inspectToolSchemas,
           resolveReasoningOutputMode,
           prepareExtraParams: ({ extraParams }) => ({
             ...extraParams,
@@ -809,6 +813,16 @@ describe("provider-runtime", () => {
     ).toEqual([{ name: "demo-tool" }]);
 
     expect(
+      inspectProviderToolSchemasWithPlugin({
+        provider: DEMO_PROVIDER_ID,
+        context: createDemoResolvedModelContext({
+          modelApi: MODEL.api,
+          tools: [{ name: "demo-tool" }],
+        }),
+      }),
+    ).toEqual([]);
+
+    expect(
       normalizeProviderResolvedModelWithPlugin({
         provider: DEMO_PROVIDER_ID,
         context: createDemoResolvedModelContext({}),
@@ -947,6 +961,7 @@ describe("provider-runtime", () => {
       sanitizeReplayHistory,
       validateReplayTurns,
       normalizeToolSchemas,
+      inspectToolSchemas,
       resolveReasoningOutputMode,
       refreshOAuth,
       resolveSyntheticAuth,
