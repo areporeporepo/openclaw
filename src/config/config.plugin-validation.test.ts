@@ -357,6 +357,45 @@ describe("config plugin validation", () => {
     }
   });
 
+  it("skips schema validation for plugins the user explicitly disabled (#63250)", async () => {
+    // Regression: v2026.4.8 started forcing schema validation any time a
+    // plugin entry was present, even when the user had opted out with
+    // `{ enabled: false }`. Gateways failed to start for any user who had
+    // a bare disabled stub for a plugin whose schema had required fields.
+    const res = validateInSuite({
+      agents: { list: [{ id: "pi" }] },
+      plugins: {
+        enabled: true,
+        load: { paths: [badPluginDir] },
+        entries: { "bad-plugin": { enabled: false } },
+      },
+    });
+    expect(res.ok).toBe(true);
+  });
+
+  it("still flags invalid config on disabled plugins that carry a config block", async () => {
+    // Explicit config blocks should still get schema coverage so typos
+    // surface even when the user flipped `enabled: false` after
+    // configuring the plugin.
+    const res = validateInSuite({
+      agents: { list: [{ id: "pi" }] },
+      plugins: {
+        enabled: true,
+        load: { paths: [badPluginDir] },
+        entries: { "bad-plugin": { enabled: false, config: { value: "nope" } } },
+      },
+    });
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      const hasIssue = res.issues.some(
+        (issue) =>
+          issue.path.startsWith("plugins.entries.bad-plugin.config") &&
+          issue.message.includes("invalid config"),
+      );
+      expect(hasIssue).toBe(true);
+    }
+  });
+
   it("does not require native config schemas for enabled bundle plugins", async () => {
     const res = validateInSuite({
       agents: { list: [{ id: "pi" }] },

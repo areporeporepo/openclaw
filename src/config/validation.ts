@@ -970,6 +970,11 @@ function validateConfigObjectWithPluginsBase(
     const entry = normalizedPlugins.entries[pluginId];
     const entryExists = entry !== undefined;
     const entryHasConfig = Boolean(entry?.config);
+    // A plugin explicitly marked `enabled: false` by the user is opted out.
+    // Treat such entries as absent for schema-validation purposes when they
+    // carry no config of their own, so required-field defaults never block
+    // gateway startup for a plugin the user does not want to run (#63250).
+    const entryExplicitlyDisabled = entry?.enabled === false;
     const shouldReplacePluginConfig = opts.applyDefaults
       ? entryExists || entryHasConfig
       : entryHasConfig;
@@ -999,7 +1004,17 @@ function validateConfigObjectWithPluginsBase(
       }
     }
 
-    const shouldValidate = enabled || entryExists || entryHasConfig;
+    // Keep validation for:
+    //   - enabled plugins (so misconfigurations block startup early),
+    //   - entries that ship an explicit `config` block (so typos surface
+    //     as warnings even when the user flipped `enabled: false` after
+    //     configuring the plugin),
+    //   - entries that opt in without disabling (so auto-enable and
+    //     allowlist-driven plugins still get schema coverage).
+    // A bare `{ enabled: false }` stub must NOT trigger validation: the user
+    // has explicitly opted out and has no config to validate (#63250).
+    const shouldValidate =
+      enabled || entryHasConfig || (entryExists && !entryExplicitlyDisabled);
     if (shouldValidate) {
       if (record.configSchema) {
         const res = validateJsonSchemaValue({
