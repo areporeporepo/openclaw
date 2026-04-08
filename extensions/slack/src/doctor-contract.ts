@@ -4,8 +4,6 @@ import type {
 } from "openclaw/plugin-sdk/channel-contract";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
 import {
-  hasLegacyAccountStreamingAliases,
-  hasLegacyStreamingAliases,
   normalizeLegacyDmAliases,
   normalizeLegacyStreamingAliases,
 } from "openclaw/plugin-sdk/runtime-doctor";
@@ -17,8 +15,34 @@ function asObjectRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+// Inlined to keep `legacyConfigRules` evaluation on the bundled `contract-api.js`
+// self-contained. Reaching into `openclaw/plugin-sdk/runtime-doctor` at doctor
+// contract load time has regressed multiple releases (see fix: bypass stale
+// helper runtime exports). The checks below are small and behavior-identical
+// to `hasLegacyStreamingAliases`/`hasLegacyAccountStreamingAliases` in
+// `src/config/channel-compat-normalization.ts`.
 function hasLegacySlackStreamingAliases(value: unknown): boolean {
-  return hasLegacyStreamingAliases(value, { includeNativeTransport: true });
+  const entry = asObjectRecord(value);
+  if (!entry) {
+    return false;
+  }
+  return (
+    entry.streamMode !== undefined ||
+    typeof entry.streaming === "boolean" ||
+    typeof entry.streaming === "string" ||
+    entry.chunkMode !== undefined ||
+    entry.blockStreaming !== undefined ||
+    entry.blockStreamingCoalesce !== undefined ||
+    entry.nativeStreaming !== undefined
+  );
+}
+
+function hasLegacySlackAccountStreamingAliases(value: unknown): boolean {
+  const accounts = asObjectRecord(value);
+  if (!accounts) {
+    return false;
+  }
+  return Object.values(accounts).some((account) => hasLegacySlackStreamingAliases(account));
 }
 
 export const legacyConfigRules: ChannelDoctorLegacyConfigRule[] = [
@@ -32,7 +56,7 @@ export const legacyConfigRules: ChannelDoctorLegacyConfigRule[] = [
     path: ["channels", "slack", "accounts"],
     message:
       "channels.slack.accounts.<id>.streamMode, streaming (scalar), chunkMode, blockStreaming, blockStreamingCoalesce, and nativeStreaming are legacy; use channels.slack.accounts.<id>.streaming.{mode,chunkMode,block.enabled,block.coalesce,nativeTransport}.",
-    match: (value) => hasLegacyAccountStreamingAliases(value, hasLegacySlackStreamingAliases),
+    match: hasLegacySlackAccountStreamingAliases,
   },
 ];
 
