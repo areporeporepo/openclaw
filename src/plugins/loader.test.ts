@@ -2163,6 +2163,66 @@ module.exports = { id: "throws-after-import", register() {} };`,
     ).toThrow("plugin load failed: configurable: invalid config: <root>: must be object");
   });
 
+  it("dedupes invalid-config error logs across repeated loader calls (#63234)", () => {
+    useNoBundledPlugins();
+    const plugin = writePlugin({
+      id: "configurable",
+      filename: "configurable.cjs",
+      body: `module.exports = { id: "configurable", register() {} };`,
+    });
+
+    const errors: string[] = [];
+    const loadWithBadConfig = () =>
+      loadRegistryFromSinglePlugin({
+        plugin,
+        pluginConfig: {
+          entries: {
+            configurable: {
+              config: "nope" as unknown as Record<string, unknown>,
+            },
+          },
+        },
+        options: {
+          logger: createErrorLogger(errors),
+        },
+      });
+
+    // Simulates the startup pattern from #63234 where multiple subsystems
+    // (runtime loader, cli-metadata loader, scoped provider lookups, config
+    // hot-reload cycles) each reload the plugin registry with the same config.
+    // Before the fix, every call wrote a fresh "invalid config" line to the
+    // logger, producing dozens of duplicates. The diagnostic record and the
+    // plugin status must still reflect the error on every call; only the log
+    // is deduped.
+    const firstRegistry = loadWithBadConfig();
+    const secondRegistry = loadWithBadConfig();
+    const thirdRegistry = loadWithBadConfig();
+
+    const invalidConfigLogs = errors.filter((entry) =>
+      entry.includes("configurable invalid config:"),
+    );
+    expect(invalidConfigLogs).toHaveLength(1);
+
+    for (const registry of [firstRegistry, secondRegistry, thirdRegistry]) {
+      const configurable = registry.plugins.find((entry) => entry.id === "configurable");
+      expect(configurable?.status).toBe("error");
+      expect(configurable?.error).toContain("invalid config:");
+      expect(
+        registry.diagnostics.some(
+          (d) => d.level === "error" && String(d.message).includes("invalid config:"),
+        ),
+      ).toBe(true);
+    }
+
+    // clearPluginLoaderCache() must also reset the dedupe cache so the next
+    // cold start surfaces the error again (for example after `openclaw doctor`
+    // or test teardown).
+    clearPluginLoaderCache();
+    loadWithBadConfig();
+    const afterReset = errors.filter((entry) => entry.includes("configurable invalid config:"));
+    expect(afterReset).toHaveLength(2);
+  });
+
   it("fails when plugin export id mismatches manifest id", () => {
     useNoBundledPlugins();
     const plugin = writePlugin({

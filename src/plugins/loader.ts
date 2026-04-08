@@ -162,6 +162,16 @@ let pluginRegistryCacheEntryCap = MAX_PLUGIN_REGISTRY_CACHE_ENTRIES;
 const registryCache = new Map<string, CachedPluginState>();
 const inFlightPluginRegistryLoads = new Set<string>();
 const openAllowlistWarningCache = new Set<string>();
+// Dedupe cache for plugin "invalid config" error logs. The loader runs many
+// times during startup (runtime registry load, cli-metadata registry load,
+// scoped provider resolution loads, config hot-reload cycles), each revalidating
+// every candidate plugin's config against its schema. Without dedupe, a single
+// schema mismatch produces one log line per call, which for steady reload loops
+// can yield dozens of identical "invalid config" warnings in the first few
+// seconds of gateway startup (see #63234). Dedupe by `<pluginId>|<errors>` so
+// each distinct validation failure is logged once per process while still
+// letting callers see new or changed errors after a config edit.
+const invalidPluginConfigLogCache = new Set<string>();
 const LAZY_RUNTIME_REFLECTION_KEYS = [
   "version",
   "config",
@@ -182,9 +192,24 @@ export function clearPluginLoaderCache(): void {
   registryCache.clear();
   inFlightPluginRegistryLoads.clear();
   openAllowlistWarningCache.clear();
+  invalidPluginConfigLogCache.clear();
   clearCompactionProviders();
   clearMemoryEmbeddingProviders();
   clearMemoryPluginState();
+}
+
+function logInvalidPluginConfigOnce(params: {
+  logger: PluginLogger;
+  pluginId: string;
+  errors: readonly string[] | undefined;
+}): void {
+  const errorText = params.errors?.join(", ") ?? "";
+  const cacheKey = `${params.pluginId}|${errorText}`;
+  if (invalidPluginConfigLogCache.has(cacheKey)) {
+    return;
+  }
+  invalidPluginConfigLogCache.add(cacheKey);
+  params.logger.error(`[plugins] ${params.pluginId} invalid config: ${errorText}`);
 }
 
 const defaultLogger = () => createSubsystemLogger("plugins");
@@ -1511,9 +1536,11 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
       });
 
       if (!validatedConfig.ok) {
-        logger.error(
-          `[plugins] ${record.id} invalid config: ${validatedConfig.errors?.join(", ")}`,
-        );
+        logInvalidPluginConfigOnce({
+          logger,
+          pluginId: record.id,
+          errors: validatedConfig.errors,
+        });
         pushPluginLoadError(`invalid config: ${validatedConfig.errors?.join(", ")}`);
         continue;
       }
@@ -1974,7 +2001,11 @@ export async function loadOpenClawPluginCliRegistry(
       value: entry?.config,
     });
     if (!validatedConfig.ok) {
-      logger.error(`[plugins] ${record.id} invalid config: ${validatedConfig.errors?.join(", ")}`);
+      logInvalidPluginConfigOnce({
+        logger,
+        pluginId: record.id,
+        errors: validatedConfig.errors,
+      });
       pushPluginLoadError(`invalid config: ${validatedConfig.errors?.join(", ")}`);
       continue;
     }
