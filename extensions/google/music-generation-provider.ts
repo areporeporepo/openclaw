@@ -8,7 +8,7 @@ import type {
 import { isProviderApiKeyConfigured } from "openclaw/plugin-sdk/provider-auth";
 import { resolveApiKeyForProvider } from "openclaw/plugin-sdk/provider-auth-runtime";
 import { normalizeOptionalString } from "openclaw/plugin-sdk/text-runtime";
-import { normalizeGoogleApiBaseUrl } from "./api.js";
+import { resolveGoogleGenerativeAiApiOrigin } from "./api.js";
 
 const DEFAULT_GOOGLE_MUSIC_MODEL = "lyria-3-clip-preview";
 const GOOGLE_PRO_MUSIC_MODEL = "lyria-3-pro-preview";
@@ -35,7 +35,11 @@ type GoogleGenerateMusicResponse = {
 
 function resolveConfiguredGoogleMusicBaseUrl(req: MusicGenerationRequest): string | undefined {
   const configured = normalizeOptionalString(req.cfg?.models?.providers?.google?.baseUrl);
-  return configured ? normalizeGoogleApiBaseUrl(configured) : undefined;
+  // The Google GenAI SDK appends its own apiVersion (e.g. "/v1beta") to httpOptions.baseUrl,
+  // so we must hand it the API origin without the /v1beta suffix. Otherwise a user-configured
+  // baseUrl that already ends in /v1beta (the default/documented value) produces /v1beta/v1beta
+  // and all requests 404. Mirrors normalizeGoogleGenerativeAiBaseUrl + strip used by text gen.
+  return configured ? resolveGoogleGenerativeAiApiOrigin(configured) : undefined;
 }
 
 function buildMusicPrompt(req: MusicGenerationRequest): string {
@@ -158,12 +162,11 @@ export function buildGoogleMusicGenerationProvider(): MusicGenerationProvider {
         }
       }
 
+      const configuredBaseUrl = resolveConfiguredGoogleMusicBaseUrl(req);
       const client = new GoogleGenAI({
         apiKey: auth.apiKey,
         httpOptions: {
-          ...(resolveConfiguredGoogleMusicBaseUrl(req)
-            ? { baseUrl: resolveConfiguredGoogleMusicBaseUrl(req) }
-            : {}),
+          ...(configuredBaseUrl ? { baseUrl: configuredBaseUrl } : {}),
           timeout: req.timeoutMs ?? DEFAULT_TIMEOUT_MS,
         },
       });

@@ -10,7 +10,7 @@ import type {
   VideoGenerationProvider,
   VideoGenerationRequest,
 } from "openclaw/plugin-sdk/video-generation";
-import { normalizeGoogleApiBaseUrl } from "./api.js";
+import { resolveGoogleGenerativeAiApiOrigin } from "./api.js";
 
 const DEFAULT_GOOGLE_VIDEO_MODEL = "veo-3.1-fast-generate-preview";
 const DEFAULT_TIMEOUT_MS = 180_000;
@@ -23,7 +23,10 @@ const GOOGLE_VIDEO_MAX_DURATION_SECONDS =
 
 function resolveConfiguredGoogleVideoBaseUrl(req: VideoGenerationRequest): string | undefined {
   const configured = normalizeOptionalString(req.cfg?.models?.providers?.google?.baseUrl);
-  return configured ? normalizeGoogleApiBaseUrl(configured) : undefined;
+  // The Google GenAI SDK appends its own apiVersion (e.g. "/v1beta") to httpOptions.baseUrl,
+  // so we must strip any trailing /v1beta from the user-configured value. Otherwise a baseUrl
+  // ending in /v1beta (the default/documented value) produces a double /v1beta path and 404s.
+  return configured ? resolveGoogleGenerativeAiApiOrigin(configured) : undefined;
 }
 
 function parseVideoSize(size: string | undefined): { width: number; height: number } | undefined {
