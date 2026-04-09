@@ -1,0 +1,27 @@
+src/agents/pi-embedded-runner/run.strip-provider-prefix.test.ts
+  91992e15890ec343 1-105
+src/agents/model-selection.test.ts
+  91992e15890ec343 262-272
+src/agents/pi-embedded-runner/run.ts
+  91992e15890ec343 146-154
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.6",
+  "base_commit_sha": "7674b8a7a93250e487f428fda2a745d6d3ef154f",
+  "prompts": {
+    "91992e15890ec343": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c462bd73-81f9-43a7-9101-6206e520c83f",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "anh nguyen",
+      "messages": [],
+      "total_additions": 126,
+      "total_deletions": 4,
+      "accepted_lines": 126,
+      "overriden_lines": 0
+    }
+  }
+}
